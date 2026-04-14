@@ -257,7 +257,7 @@ Maximum possible BUY score: **9** · Maximum possible SELL score: **8**
 ### 1. Clone and install dependencies
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/moizefala1/StockPulse
 cd StockPulse
 pip install -r requirements.txt
 ```
