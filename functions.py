@@ -40,10 +40,17 @@ def send_discord(message: str, color: int = 0x4f98a3) -> None:
     if not WEBHOOK:
         log.info(f"[DISCORD] {message}")
         return
+    
+    content = ""
+    if "@everyone" in message:
+        content = "@everyone"
+        message = message.replace("@everyone\n", "").replace("@everyone", "")
+
     payload = {
+        "content": content,
         "embeds": [{
             "title": "📈 StockPulse",
-            "description": message,
+            "description": message.strip(),
             "color": color,
             "timestamp": datetime.utcnow().isoformat(),
         }]
@@ -58,7 +65,7 @@ def send_discord(message: str, color: int = 0x4f98a3) -> None:
 def get_data(symbol: str) -> pd.DataFrame | None:
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="5d", interval="30m")
+        df = ticker.history(period="7d", interval="30m")
         if df.empty or len(df) < 60:
             log.warning(f"{symbol}: datos insuficientes ({len(df)} velas)")
             return None
@@ -87,9 +94,9 @@ def get_indicators(df: pd.DataFrame) -> dict:
     ema_long  = ta.ema(close, length=EMA_LONG)
 
     bb = ta.bbands(close, length=BB_PERIOD, std=BB_STD)
-    bb_upper = bb[f"BBU_{BB_PERIOD}_{float(BB_STD)}"]
-    bb_lower = bb[f"BBL_{BB_PERIOD}_{float(BB_STD)}"]
-    bb_mid   = bb[f"BBM_{BB_PERIOD}_{float(BB_STD)}"]
+    bb_lower = bb[[c for c in bb.columns if c.startswith("BBL_")]].iloc[:, 0]
+    bb_mid   = bb[[c for c in bb.columns if c.startswith("BBM_")]].iloc[:, 0]
+    bb_upper = bb[[c for c in bb.columns if c.startswith("BBU_")]].iloc[:, 0]
 
     atr = ta.atr(high, low, close, length=14)
     vol_avg   = vol.rolling(20).mean()

@@ -27,6 +27,7 @@ def run_cycle() -> None:
             if signal in ("BUY", "SELL"):
                 emoji = "🟢" if signal == "BUY" else "🔴"
                 msg = (
+                    f"@everyone\n"
                     f"{emoji} **{signal} {symbol}** — `${ind['price']:.2f}`\n"
                     f"RSI: `{ind['rsi']:.1f}` | Stoch K: `{ind['stoch_k']:.1f}`\n"
                     f"MACD hist: `{ind['macd_hist']:.4f}` (prev `{ind['macd_hist_prev']:.4f}`)\n"
@@ -52,6 +53,7 @@ def main() -> None:
     log.info("Iniciando Stocks Trading Bot...")
     log.info(f"Parrilla: {', '.join(SYMBOLS)}")
     send_discord(
+        f"@everyone\n"
         f"✅ Stocks Bot iniciado — solo alertas Discord\nParrilla: {', '.join(SYMBOLS)}",
         0x4f98a3
     )
