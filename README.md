@@ -1,20 +1,30 @@
 # 📈 StockPulse
 
-A Python algorithmic trading bot that scans a watchlist of US stocks every 30 minutes during NYSE trading hours, computes a suite of technical indicators, and fires **BUY / SELL** alerts to a Discord channel via webhook.
+A Python algorithmic trading bot that scans a watchlist of US stocks, computes a suite of technical indicators, and fires **BUY / SELL** alerts to a Discord channel via webhook.
 
----
+StockPulse supports two operating modes selectable via the `TRADING_MODE` environment variable — no code changes required:
+
+| Mode | Candles | Scan frequency | BUY threshold | SELL threshold |
+|---|---|---|---|---|
+| `intraday` (default) | 30-minute | Every 30 min while NYSE is open | ≥ 4 | ≥ 3 |
+| `swing` | Daily (1d) | Once per day at 09:35 ET | ≥ 5 | ≥ 4 |
+
+***
 
 ## How it works
 
 StockPulse runs a continuous loop. On each iteration it checks whether the NYSE is currently open (Monday–Friday, 09:30–16:00 ET). If the market is closed it sleeps in 5-minute blocks until the next opening bell; if it is open it executes one full scan cycle.
 
+In **swing mode** the loop fires a single cycle at 09:35 ET each trading day instead of repeating every 30 minutes.
+
 During a cycle, for every symbol in the watchlist:
 
-1. **Fetch** — 5 days of 30-minute OHLCV candles are downloaded from Yahoo Finance via `yfinance`.
+1. **Fetch** — OHLCV candles are downloaded from Yahoo Finance via `yfinance` (7 days × 30 min in intraday; 6 months × 1d in swing).
 2. **Compute** — all technical indicators are calculated with `pandas_ta`.
-3. **Score** — each indicator contributes points to a `buy_score` or `sell_score`.
-4. **Decide** — if `buy_score ≥ 4` → **BUY**; if `sell_score ≥ 3` → **SELL**; otherwise **HOLD**.
-5. **Alert** — BUY/SELL signals are sent as rich Discord embeds with all indicator values and the list of triggered reasons.
+3. **Filter** *(swing only)* — if SPY is trading below its 50-day EMA, all BUY signals are suppressed for the entire cycle and a warning is sent to Discord.
+4. **Score** — each indicator contributes points to a `buy_score` or `sell_score`.
+5. **Decide** — if `buy_score ≥ threshold` → **BUY**; if `sell_score ≥ threshold` → **SELL**; otherwise **HOLD**.
+6. **Alert** — BUY/SELL signals are sent as rich Discord embeds with all indicator values and the list of triggered reasons. Swing alerts include a T+1 hold reminder.
 
 ```text
 StockPulse.py          ← main loop & cycle orchestration
@@ -22,7 +32,7 @@ params.py              ← all constants, env vars, watchlist
 functions.py           ← market schedule, data fetching, indicators, signal logic
 ```
 
----
+***
 
 ## Technical Indicators
 
@@ -56,7 +66,7 @@ Where:
 | $RSI > 68$ | +1 SELL |
 | $RSI < 32$ | +1 SELL |
 
----
+***
 
 ### 2 · MACD — Moving Average Convergence Divergence
 *Parameters: `MACD_FAST = 12`, `MACD_SLOW = 26`, `MACD_SIGNAL = 9`*
@@ -88,7 +98,7 @@ Where:
 | $H_t > 0$ and $H_{t-1} \leq 0$ (bullish cross) | **+2 BUY** |
 | $H_t < 0$ and $H_{t-1} \geq 0$ (bearish cross) | **+2 SELL** |
 
----
+***
 
 ### 3 · EMA — Exponential Moving Average
 *Parameters: `EMA_SHORT = 20`, `EMA_LONG = 50`*
@@ -114,7 +124,7 @@ Where:
 | $C_t > EMA_{20,t} > EMA_{50,t}$ | +1 BUY |
 | $C_t < EMA_{20,t}$ | +1 SELL |
 
----
+***
 
 ### 4 · Bollinger Bands
 *Parameters: `BB_PERIOD = 20`, `BB_STD = 2`*
@@ -145,7 +155,7 @@ Where:
 | $C_t \leq BB_{mid,t}$ | +1 BUY |
 | $C_t \geq 0.98 \cdot BB_{upper,t}$ | +1 SELL |
 
----
+***
 
 ### 5 · ATR — Average True Range
 *Parameter: 14 periods*
@@ -165,9 +175,9 @@ Where:
 - $TR_t$: true range at candle $t$
 - $ATR_t$: average true range at candle $t$
 
-ATR is computed and stored in the indicator dictionary. It is **not used in the scoring rules** — it is available as context for future extensions such as position sizing or dynamic stop-loss placement.
+ATR is computed and included in every Discord alert as context. It is **not used in the scoring rules** — it is available for future extensions such as position sizing or dynamic stop-loss placement.
 
----
+***
 
 ### 6 · Volume Ratio
 *Parameter: rolling 20-candle volume mean*
@@ -187,7 +197,7 @@ A ratio above 1.2 means the current candle carries at least 20% more volume than
 |---|---|
 | $VolRatio_t > 1.2$ | +1 BUY |
 
----
+***
 
 ### 7 · Stochastic RSI
 *Parameter: 14 periods, K smoothing = 3*
@@ -206,8 +216,8 @@ Where:
 - $RSI_t$: RSI value at candle $t$
 - $\min_{[t-N+1,\,t]}(RSI)$: minimum RSI over the last 14 candles
 - $\max_{[t-N+1,\,t]}(RSI)$: maximum RSI over the last 14 candles
-- $StochRSI_{raw,t}$: position of current RSI within its 14-period range, in $[0, 1]$
-- $K_t$: 3-period smoothed StochRSI, scaled to $[0, 100]$
+- $StochRSI_{raw,t}$: position of current RSI within its 14-period range, in $[1]$
+- $K_t$: 3-period smoothed StochRSI, scaled to $$
 
 **Bot thresholds:**
 
@@ -216,15 +226,15 @@ Where:
 | $K_t < 25$ | +1 BUY |
 | $K_t > 80$ | +1 SELL |
 
----
+***
 
 ## Signal Decision Logic
 
 All seven indicators are evaluated simultaneously for every candle. Each triggered condition adds points to `buy_score` or `sell_score`. The decision function is:
 
-$$Signal = \begin{cases} \textbf{BUY} & \text{if } buy\_score \geq 4 \\ \textbf{SELL} & \text{if } sell\_score \geq 3 \\ \textbf{HOLD} & \text{otherwise} \end{cases}$$
+$$Signal = \begin{cases} \textbf{BUY} & \text{if } buy\_score \geq threshold_{BUY} \\ \textbf{SELL} & \text{if } sell\_score \geq threshold_{SELL} \\ \textbf{HOLD} & \text{otherwise} \end{cases}$$
 
-The SELL threshold is intentionally lower (3 vs 4) to exit positions more reactively than entering them.
+The SELL threshold is intentionally lower than BUY to exit positions more reactively than entering them. In swing mode both thresholds are raised by 1 to reduce noise on the daily timeframe, and BUY signals are additionally suppressed when SPY trades below its 50-day EMA.
 
 **Full scoring table:**
 
@@ -245,7 +255,7 @@ The SELL threshold is intentionally lower (3 vs 4) to exit positions more reacti
 
 Maximum possible BUY score: **9** · Maximum possible SELL score: **8**
 
----
+***
 
 ## Setup
 
@@ -274,7 +284,10 @@ Create a `.env` file:
 
 ```env
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL
+TRADING_MODE=swing
 ```
+
+`TRADING_MODE` accepts `intraday` (default) or `swing`.
 
 ### 4. Run locally
 
@@ -284,44 +297,23 @@ python StockPulse.py
 
 The bot logs every scan cycle to the console and to `StockPulse.log`. Discord alerts are only sent when a BUY or SELL signal is triggered.
 
-### 5. Deploy to Railway
-
-```bash
-npm install -g @railway/cli
-railway login
-railway init
-railway up
-```
-
-Add your `DISCORD_WEBHOOK_URL` in the Railway dashboard under **Variables**. The included `Dockerfile` and `railway.toml` handle the rest.
-
----
+### 5. Deploy
+This bot is designed to be deployed and run 24/7 on a server, may this be whichever you prefer.
 
 ## Watchlist
 
-Defined in `params.py` under `SYMBOLS`. Default:
+Defined in `params.py` under `SYMBOLS`. Default (60 symbols):
 
 ```
-AAPL  MSFT  GOOGL  AMZN  NVDA  META  TSLA  AMD  JPM  SPY  QQQ  NFLX
+AAPL  MSFT  GOOGL  AMZN  META  NVDA  PLTR  NOW  SNOW  ADBE
+AVGO  QCOM  MU  AMAT  TSLA  JPM  V  BX  PYPL  LLY
+UNH  ISRG  TMO  XOM  NEE  COST  MCD  NKE  RTX  CAT
+SPY  MSTR  HOOD  COIN  RBLX  DKNG  LMT  NOC  GD  MRNA
+RXRX  CRSP  AFRM  NU  CRWD  ZS  NET  DDOG  ABNB  UBER
+SPOT  GE  PWR  FCX  NEM  SHOP  MELI  GLD
 ```
 
 Edit the list freely — any ticker supported by Yahoo Finance works.
 
----
-
-## Project structure
-
-```
-StockPulse/
-├── StockPulse.py        ← Entry point: main loop and cycle orchestration
-├── functions.py         ← Market schedule, data fetch, indicators, signal logic
-├── params.py            ← All constants, env vars, watchlist, indicator periods
-├── requirements.txt
-├── Dockerfile
-├── railway.toml
-└── .env
-```
-
----
 
 > **Disclaimer:** StockPulse is an educational project. Signals are based on technical analysis and do not constitute financial advice. Always do your own research before making any investment decision.
