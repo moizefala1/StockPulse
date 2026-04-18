@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import pandas_ta as ta
 import requests
+import pandas_market_calendars as mcal
 
 from params import (
     log, WEBHOOK, MARKET_TZ, MARKET_OPEN, MARKET_CLOSE, MARKET_DAYS,
@@ -13,25 +14,31 @@ from params import (
 
 #market time calculation
 def market_is_open() -> bool:
+    nyse = mcal.get_calendar("NYSE")
     now_et = datetime.now(MARKET_TZ)
-    if now_et.weekday() not in MARKET_DAYS:
+    schedule = nyse.schedule(
+        start_date=now_et.date(),
+        end_date=now_et.date()
+    )
+    if schedule.empty:          # feriado o fin de semana
         return False
-    return MARKET_OPEN <= now_et.time() < MARKET_CLOSE
+    open_t  = schedule.iloc[0]["market_open"].to_pydatetime()
+    close_t = schedule.iloc[0]["market_close"].to_pydatetime()
+    return open_t <= now_et <= close_t
 
 
 def seconds_until_open() -> float:
+    nyse   = mcal.get_calendar("NYSE")
     now_et = datetime.now(MARKET_TZ)
-    check = now_et
-    while True:
-        if check.weekday() in MARKET_DAYS:
-            candidate = check.replace(
-                hour=MARKET_OPEN.hour, minute=MARKET_OPEN.minute,
-                second=0, microsecond=0,
-            )
-            if candidate > now_et:
-                return max((candidate - now_et).total_seconds(), 60)
-        check = check.replace(hour=0, minute=0, second=0, microsecond=0)
-        check += timedelta(days=1)
+    for i in range(10):
+        candidate_date = (now_et + timedelta(days=i)).date()
+        schedule = nyse.schedule(start_date=candidate_date, end_date=candidate_date)
+        if schedule.empty:
+            continue
+        open_t = schedule.iloc[0]["market_open"].to_pydatetime()
+        if open_t > now_et:
+            return max((open_t - now_et).total_seconds(), 60)
+    return 3600
 
 
 #discord notification
