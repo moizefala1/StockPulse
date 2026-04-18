@@ -35,7 +35,6 @@ def run_cycle() -> None:
 
             if signal in ("BUY", "SELL"):
                 emoji = "🟢" if signal == "BUY" else "🔴"
-                hold_note = "\nMantener minimo hasta mañana" if TRADING_MODE == "swing" else ""
                 msg = (
                     f"@everyone\n"
                     f"{emoji} **{signal} {symbol}** — `${ind['price']:.2f}`\n"
@@ -44,7 +43,6 @@ def run_cycle() -> None:
                     f"EMA20: `{ind['ema_short']:.2f}` / EMA50: `{ind['ema_long']:.2f}`\n"
                     f"BB upper: `{ind['bb_upper']:.2f}` | BB mid: `{ind['bb_mid']:.2f}`\n"
                     f"Vol ratio: `{ind['vol_ratio']:.2f}x` | ATR: `{ind['atr']:.2f}`"
-                    f"{hold_note}\n"
                     f"**Razones:** {', '.join(reasons)}"
                 )
                 color = 0x6daa45 if signal == "BUY" else 0xdd6974
@@ -89,7 +87,7 @@ def run_intraday() -> None:
 def run_swing() -> None:
     log.info("Modo: SWING — escaneo diario a las 09:35 ET")
     send_discord(
-        f"@everyone\nStockPulse iniciado · Modo **SWING** (compatible Fintual T+1)\n"
+        f"@everyone\nStockPulse iniciado · Modo **SWING**\n"
         f"Escaneo diario a las 09:35 ET\nParrilla: {', '.join(SYMBOLS)}",
         0x4f98a3,
     )
