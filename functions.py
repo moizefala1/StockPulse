@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas_ta as ta
 import requests
 import pandas_market_calendars as mcal
+import time as _time
 
 from params import (
     log, WEBHOOK, MARKET_TZ, MARKET_OPEN, MARKET_CLOSE, MARKET_DAYS,
@@ -52,7 +53,13 @@ def send_discord(message: str, color: int = 0x4f98a3) -> None:
         content = "@everyone"
         message = message.replace("@everyone\n", "").replace("@everyone", "")
 
-    mode_label = "Swing" if TRADING_MODE == "swing" else "Intraday"
+    if TRADING_MODE == "swing":
+        mode_label = "Swing"
+    elif TRADING_MODE == "crypto":
+        mode_label = "Crypto"
+    else:
+        mode_label = "Intraday"
+        
     payload = {
         "content": content,
         "embeds": [{
@@ -99,6 +106,41 @@ def get_data(symbol: str) -> pd.DataFrame | None:
         return df
     except Exception as e:
         log.error(f"Error descargando {symbol}: {e}")
+        return None
+    
+#retrive data from buda api (crypto mode)    
+def get_data_crypto(symbol: str) -> pd.DataFrame | None:
+    try:
+        resolution = DATA_INTERVAL
+        to_ts = int(_time.time())
+        from_ts = to_ts - 7 * 24 * 60 * 60
+        url = (
+            f"https://www.buda.com/api/v2/tv/history"
+            f"?symbol={symbol}&from={from_ts}&to={to_ts}&resolution={resolution}"
+        )
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get("s") != "ok":
+            log.warning(f"{symbol}: buda respondio status={data.get('s')}")
+            return None
+
+        df = pd.DataFrame({
+            "open":   data["o"],
+            "high":   data["h"],
+            "low":    data["l"],
+            "close":  data["c"],
+            "volume": data["v"],
+        }, index=pd.to_datetime(data["t"], unit="s", utc=True))
+
+        if len(df) < MIN_CANDLES:
+            log.warning(f"{symbol}: datos insuficientes ({len(df)} velas)")
+            return None
+
+        return df
+    except Exception as e:
+        log.error(f"Error descargando crypto {symbol}: {e}")
         return None
 
 

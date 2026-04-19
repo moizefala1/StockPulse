@@ -1,9 +1,9 @@
 import time
 from datetime import datetime
-from params import log, SYMBOLS, MARKET_TZ, TRADING_MODE, SCAN_INTERVAL, SCAN_HOUR_ET, SCAN_MINUTE_ET
+from params import log, SYMBOLS, CRYPTO_SYMBOLS, MARKET_TZ, TRADING_MODE, SCAN_INTERVAL, SCAN_HOUR_ET, SCAN_MINUTE_ET
 from functions import (
     market_is_open, seconds_until_open, send_discord,
-    get_data, get_indicators, get_signal, market_is_bullish,
+    get_data, get_data_crypto, get_indicators, get_signal, market_is_bullish,
 )
 
 
@@ -20,8 +20,12 @@ def run_cycle() -> None:
             0xbb653b,
         )
 
-    for symbol in SYMBOLS:
-        df = get_data(symbol)
+
+    symbols = CRYPTO_SYMBOLS if TRADING_MODE == "crypto" else SYMBOLS
+    fetch_fn = get_data_crypto if TRADING_MODE == "crypto" else get_data
+    
+    for symbol in symbols:
+        df = fetch_fn(symbol)
         if df is None:
             continue
         try:
@@ -111,16 +115,36 @@ def run_swing() -> None:
             log.info("Escaneo diario completado. Proximo escaneo mañana a las 09:35 ET.")
 
         time.sleep(60)
+        
+def run_crypto() -> None:
+    log.info("Modo: CRYPTO — escaneo cada 30 min (24/7)")
+    send_discord(
+        f"@everyone\nStockPulse iniciado · Modo **CRYPTO**\n"
+        f"Parrilla: {', '.join(CRYPTO_SYMBOLS)}",
+        0x4f98a3,
+    )
+
+    while True:
+        try:
+            run_cycle()
+        except Exception as e:
+            log.error(f"Error inesperado: {e}")
+            send_discord(f"Error en ciclo crypto: `{e}`", 0xbb653b)
+        log.info(f"Esperando {SCAN_INTERVAL // 60} minutos...")
+        time.sleep(SCAN_INTERVAL)
 
 
 def main() -> None:
     log.info(f"Iniciando StockPulse — TRADING_MODE={TRADING_MODE.upper()}")
-    log.info(f"Parrilla: {', '.join(SYMBOLS)}")
-    if TRADING_MODE == "intraday":
-        run_intraday()
+    if TRADING_MODE == "crypto":
+        log.info(f"Parrilla: {', '.join(CRYPTO_SYMBOLS)}")
+        run_crypto()
+    elif TRADING_MODE == "intraday":
+        log.info(f"Parrilla: {', '.join(SYMBOLS)}")
+        run_intraday()  
     else:
+        log.info(f"Parrilla: {', '.join(SYMBOLS)}")
         run_swing()
-
 
 if __name__ == "__main__":
     main()

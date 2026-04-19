@@ -30,22 +30,31 @@ MARKET_DAYS  = {0, 1, 2, 3, 4}  # mon-fri
 
 #parameters by mode
 if TRADING_MODE == "intraday":
-    DATA_INTERVAL  = "30m"
-    DATA_PERIOD    = "7d"
-    MIN_CANDLES    = 60
-    SCAN_INTERVAL  = 30 * 60      
-    SCAN_HOUR_ET   = None
+    DATA_INTERVAL = "30m"
+    DATA_PERIOD = "7d"
+    MIN_CANDLES = 60
+    SCAN_INTERVAL = 30 * 60
+    SCAN_HOUR_ET = None
     SCAN_MINUTE_ET = None
-    BUY_THRESHOLD  = 4
+    BUY_THRESHOLD = 4
+    SELL_THRESHOLD = 3
+elif TRADING_MODE == "crypto":
+    DATA_INTERVAL = "30"
+    DATA_PERIOD = "7d"
+    MIN_CANDLES = 40
+    SCAN_INTERVAL = 30 * 60
+    SCAN_HOUR_ET = None
+    SCAN_MINUTE_ET = None
+    BUY_THRESHOLD = 4
     SELL_THRESHOLD = 3
 else:  # swing
-    DATA_INTERVAL  = "1d"
-    DATA_PERIOD    = "6mo"
-    MIN_CANDLES    = 60
-    SCAN_INTERVAL  = None
-    SCAN_HOUR_ET   = 9
+    DATA_INTERVAL = "1d"
+    DATA_PERIOD = "6mo"
+    MIN_CANDLES = 60
+    SCAN_INTERVAL = None
+    SCAN_HOUR_ET = 9
     SCAN_MINUTE_ET = 35
-    BUY_THRESHOLD  = 5
+    BUY_THRESHOLD = 5
     SELL_THRESHOLD = 4
 
 #stocks
@@ -72,9 +81,9 @@ SYMBOLS = [
     "GLD",
 ]
 
-# ---------------------------------------------------------------------------
-# Indicadores técnicos (compartidos entre modos)
-# ---------------------------------------------------------------------------
+CRYPTO_SYMBOLS = ["BTC-CLP", "ETH-CLP", "LTC-CLP", "BCH-CLP", "SOL-CLP"]
+
+#index parameters
 RSI_PERIOD  = 14
 MACD_FAST   = 12
 MACD_SLOW   = 26
