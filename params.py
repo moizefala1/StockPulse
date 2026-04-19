@@ -39,14 +39,14 @@ if TRADING_MODE == "intraday":
     BUY_THRESHOLD = 4
     SELL_THRESHOLD = 3
 elif TRADING_MODE == "crypto":
-    DATA_INTERVAL = "30"
+    DATA_INTERVAL = "30m"
     DATA_PERIOD = "7d"
     MIN_CANDLES = 40
     SCAN_INTERVAL = 30 * 60
     SCAN_HOUR_ET = None
     SCAN_MINUTE_ET = None
-    BUY_THRESHOLD = 4
-    SELL_THRESHOLD = 3
+    BUY_THRESHOLD = 5
+    SELL_THRESHOLD = 4
 else:  # swing
     DATA_INTERVAL = "1d"
     DATA_PERIOD = "6mo"
@@ -81,7 +81,7 @@ SYMBOLS = [
     "GLD",
 ]
 
-CRYPTO_SYMBOLS = ["BTC-CLP", "ETH-CLP", "LTC-CLP", "BCH-CLP", "SOL-CLP"]
+CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "SOL-USD"]
 
 #index parameters
 RSI_PERIOD  = 14
