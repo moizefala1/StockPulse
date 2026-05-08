@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-#logging configuration for debugging and monitoring
+# logging configuration for debugging and monitoring
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -22,13 +22,13 @@ TRADING_MODE = os.getenv("TRADING_MODE", "intraday").lower()
 # discord
 WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL", "")
 
-#NYSE timezone
-MARKET_TZ    = pytz.timezone("America/New_York")
-MARKET_OPEN  = dtime(9, 30)
+# NYSE timezone
+MARKET_TZ = pytz.timezone("America/New_York")
+MARKET_OPEN = dtime(9, 30)
 MARKET_CLOSE = dtime(16, 0)
-MARKET_DAYS  = {0, 1, 2, 3, 4}  # mon-fri
+MARKET_DAYS = {0, 1, 2, 3, 4}  # mon-fri
 
-#parameters by mode
+# parameters by mode
 if TRADING_MODE == "intraday":
     DATA_INTERVAL = "30m"
     DATA_PERIOD = "7d"
@@ -54,10 +54,10 @@ else:  # swing
     SCAN_INTERVAL = None
     SCAN_HOUR_ET = 9
     SCAN_MINUTE_ET = 35
-    BUY_THRESHOLD = 5
-    SELL_THRESHOLD = 4
+    BUY_THRESHOLD = 4
+    SELL_THRESHOLD = 3
 
-#stocks
+# stocks
 SYMBOLS = [
     "AAPL", "MSFT", "GOOGL", "AMZN", "META",
     "NVDA", "PLTR", "NOW", "SNOW", "ADBE",
@@ -83,12 +83,12 @@ SYMBOLS = [
 
 CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "SOL-USD"]
 
-#index parameters
-RSI_PERIOD  = 14
-MACD_FAST   = 12
-MACD_SLOW   = 26
+# indicator parameters
+RSI_PERIOD = 14
+MACD_FAST = 12
+MACD_SLOW = 26
 MACD_SIGNAL = 9
-EMA_SHORT   = 20
-EMA_LONG    = 50
-BB_PERIOD   = 20
-BB_STD      = 2.0
+EMA_SHORT = 20
+EMA_LONG = 50
+BB_PERIOD = 20
+BB_STD = 2.0

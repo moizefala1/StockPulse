@@ -13,18 +13,17 @@ from params import (
     BUY_THRESHOLD, SELL_THRESHOLD, TRADING_MODE,
 )
 
+
 def market_is_open() -> bool:
     nyse = mcal.get_calendar("NYSE")
     now_et = datetime.now(MARKET_TZ)
-    schedule = nyse.schedule(
-        start_date=now_et.date(),
-        end_date=now_et.date()
-    )
+    schedule = nyse.schedule(start_date=now_et.date(), end_date=now_et.date())
     if schedule.empty:
         return False
     open_t = schedule.iloc[0]["market_open"].to_pydatetime()
     close_t = schedule.iloc[0]["market_close"].to_pydatetime()
     return open_t <= now_et <= close_t
+
 
 def seconds_until_open() -> float:
     nyse = mcal.get_calendar("NYSE")
@@ -38,6 +37,7 @@ def seconds_until_open() -> float:
         if open_t > now_et:
             return max((open_t - now_et).total_seconds(), 60)
     return 3600
+
 
 def send_discord(message: str, color: int = 0x4f98a3) -> None:
     if not WEBHOOK:
@@ -70,6 +70,7 @@ def send_discord(message: str, color: int = 0x4f98a3) -> None:
     except Exception as e:
         log.warning(f"Discord webhook fallo: {e}")
 
+
 def market_is_bullish() -> bool:
     try:
         df = yf.Ticker("SPY").history(period="3mo", interval="1d", auto_adjust=True)
@@ -84,6 +85,7 @@ def market_is_bullish() -> bool:
     except Exception as e:
         log.warning(f"No se pudo verificar tendencia SPY: {e}")
         return True
+
 
 def crypto_is_bullish() -> bool:
     try:
@@ -100,6 +102,7 @@ def crypto_is_bullish() -> bool:
         log.warning(f"No se pudo verificar tendencia BTC: {e}")
         return True
 
+
 def get_data(symbol: str) -> pd.DataFrame | None:
     try:
         ticker = yf.Ticker(symbol)
@@ -114,6 +117,7 @@ def get_data(symbol: str) -> pd.DataFrame | None:
         log.error(f"Error descargando {symbol}: {e}")
         return None
 
+
 def get_data_crypto(symbol_usd: str) -> pd.DataFrame | None:
     try:
         ticker = yf.Ticker(symbol_usd)
@@ -127,59 +131,69 @@ def get_data_crypto(symbol_usd: str) -> pd.DataFrame | None:
         log.error(f"Error descargando crypto {symbol_usd}: {e}")
         return None
 
+
 def get_indicators(df: pd.DataFrame) -> dict:
     close = df["close"]
-    high = df["high"]
-    low = df["low"]
-    vol = df["volume"]
+    high  = df["high"]
+    low   = df["low"]
+    vol   = df["volume"]
 
     rsi = ta.rsi(close, length=RSI_PERIOD)
     macd_df = ta.macd(close, fast=MACD_FAST, slow=MACD_SLOW, signal=MACD_SIGNAL)
-    macd_line = macd_df[f"MACD_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
+    macd_line   = macd_df[f"MACD_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
     macd_signal = macd_df[f"MACDs_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
-    macd_hist = macd_df[f"MACDh_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
+    macd_hist   = macd_df[f"MACDh_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
 
     ema_short = ta.ema(close, length=EMA_SHORT)
-    ema_long = ta.ema(close, length=EMA_LONG)
+    ema_long  = ta.ema(close, length=EMA_LONG)
 
     bb = ta.bbands(close, length=BB_PERIOD, std=BB_STD)
     bb_lower = bb[[c for c in bb.columns if c.startswith("BBL_")]].iloc[:, 0]
-    bb_mid = bb[[c for c in bb.columns if c.startswith("BBM_")]].iloc[:, 0]
+    bb_mid   = bb[[c for c in bb.columns if c.startswith("BBM_")]].iloc[:, 0]
     bb_upper = bb[[c for c in bb.columns if c.startswith("BBU_")]].iloc[:, 0]
 
     atr = ta.atr(high, low, close, length=14)
-    vol_avg = vol.rolling(20).mean()
+    vol_avg   = vol.rolling(20).mean()
     vol_ratio = (vol / vol_avg).iloc[-1]
 
-    stoch_rsi = ta.stochrsi(close, length=14)
-    stoch_k = stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-1] if stoch_rsi is not None else 50.0
-    stoch_d = stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-1] if stoch_rsi is not None else 50.0
-    stoch_k_prev = stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-2] if stoch_rsi is not None else 50.0
-    stoch_d_prev = stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-2] if stoch_rsi is not None else 50.0
+    stoch_rsi   = ta.stochrsi(close, length=14)
+    stoch_k      = stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-1]  if stoch_rsi is not None else 50.0
+    stoch_d      = stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-1]  if stoch_rsi is not None else 50.0
+    stoch_k_prev = stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-2]  if stoch_rsi is not None else 50.0
+    stoch_d_prev = stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-2]  if stoch_rsi is not None else 50.0
 
     adx_df = ta.adx(high, low, close, length=14)
-    adx = float(adx_df["ADX_14"].iloc[-1]) if adx_df is not None else 25.0
+    adx    = float(adx_df["ADX_14"].iloc[-1]) if adx_df is not None else 25.0
+
+    # Gap overnight
+    prev_close = float(close.iloc[-2])
+    open_now   = float(df["open"].iloc[-1])
+    gap_pct    = ((open_now / prev_close) - 1.0) * 100 if prev_close else 0.0
 
     return {
-        "price": float(close.iloc[-1]),
-        "rsi": float(rsi.iloc[-1]),
-        "stoch_k": float(stoch_k),
-        "stoch_d": float(stoch_d),
-        "stoch_k_prev": float(stoch_k_prev),
-        "stoch_d_prev": float(stoch_d_prev),
-        "macd": float(macd_line.iloc[-1]),
-        "macd_signal": float(macd_signal.iloc[-1]),
-        "macd_hist": float(macd_hist.iloc[-1]),
+        "price":          float(close.iloc[-1]),
+        "prev_close":     prev_close,
+        "open":           open_now,
+        "gap_pct":        float(gap_pct),
+        "rsi":            float(rsi.iloc[-1]),
+        "stoch_k":        float(stoch_k),
+        "stoch_d":        float(stoch_d),
+        "stoch_k_prev":   float(stoch_k_prev),
+        "stoch_d_prev":   float(stoch_d_prev),
+        "macd":           float(macd_line.iloc[-1]),
+        "macd_signal":    float(macd_signal.iloc[-1]),
+        "macd_hist":      float(macd_hist.iloc[-1]),
         "macd_hist_prev": float(macd_hist.iloc[-2]),
-        "ema_short": float(ema_short.iloc[-1]),
-        "ema_long": float(ema_long.iloc[-1]),
-        "bb_upper": float(bb_upper.iloc[-1]),
-        "bb_lower": float(bb_lower.iloc[-1]),
-        "bb_mid": float(bb_mid.iloc[-1]),
-        "atr": float(atr.iloc[-1]),
-        "vol_ratio": float(vol_ratio),
-        "adx": adx,
+        "ema_short":      float(ema_short.iloc[-1]),
+        "ema_long":       float(ema_long.iloc[-1]),
+        "bb_upper":       float(bb_upper.iloc[-1]),
+        "bb_lower":       float(bb_lower.iloc[-1]),
+        "bb_mid":         float(bb_mid.iloc[-1]),
+        "atr":            float(atr.iloc[-1]),
+        "vol_ratio":      float(vol_ratio),
+        "adx":            adx,
     }
+
 
 def get_signal(ind: dict, bullish_market: bool = True) -> tuple[str, list[str]]:
     if TRADING_MODE == "swing":
@@ -187,6 +201,7 @@ def get_signal(ind: dict, bullish_market: bool = True) -> tuple[str, list[str]]:
     if TRADING_MODE == "crypto":
         return _get_signal_crypto(ind, bullish_market)
     return _get_signal_intraday(ind)
+
 
 def _get_signal_intraday(ind: dict) -> tuple[str, list[str]]:
     buy_score = 0
@@ -241,6 +256,7 @@ def _get_signal_intraday(ind: dict) -> tuple[str, list[str]]:
         return "SELL", reasons
     return "HOLD", reasons
 
+
 def _get_signal_crypto(ind: dict, bullish_market: bool) -> tuple[str, list[str]]:
     buy_score = 0
     sell_score = 0
@@ -294,6 +310,7 @@ def _get_signal_crypto(ind: dict, bullish_market: bool) -> tuple[str, list[str]]
     if sell_score >= SELL_THRESHOLD:
         return "SELL", reasons
     return "HOLD", reasons
+
 
 def _get_signal_swing(ind: dict, bullish_market: bool) -> tuple[str, list[str]]:
     buy_score = 0
@@ -382,65 +399,6 @@ def _get_signal_swing(ind: dict, bullish_market: bool) -> tuple[str, list[str]]:
     if gap_pct >= 2.5:
         sell_score += 1
         reasons.append(f"Gap alcista extendido ({gap_pct:.2f}%)")
-
-    if not bullish_market and buy_score >= BUY_THRESHOLD:
-        reasons.append("BUY bloqueado — SPY bajo EMA50 (mercado bajista)")
-        return "HOLD", reasons
-
-    if buy_score >= BUY_THRESHOLD:
-        return "BUY", reasons
-    if sell_score >= SELL_THRESHOLD:
-        return "SELL", reasons
-    return "HOLD", reasons
-    reasons.append(f"ADX {ind['adx']:.1f} — tendencia activa")
-
-    if ind["rsi"] <= 40:
-        buy_score += 1
-        reasons.append(f"RSI en sobreventa ({ind['rsi']:.1f})")
-    if ind["rsi"] > 68:
-        sell_score += 1
-        reasons.append(f"RSI sobrecomprado ({ind['rsi']:.1f})")
-    if ind["rsi"] < 25:
-        sell_score += 2
-        reasons.append(f"RSI en panico extremo ({ind['rsi']:.1f})")
-
-    if ind["macd_hist"] > 0 and ind["macd_hist_prev"] <= 0:
-        buy_score += 2
-        reasons.append("MACD cruce alcista")
-    if ind["macd_hist"] < 0 and ind["macd_hist_prev"] >= 0:
-        sell_score += 2
-        reasons.append("MACD cruce bajista")
-
-    if ind["price"] > ind["ema_short"] > ind["ema_long"]:
-        buy_score += 1
-        reasons.append("Precio > EMA20 > EMA50")
-    if ind["price"] < ind["ema_short"]:
-        sell_score += 1
-        reasons.append("Precio < EMA20")
-
-    if ind["price"] <= ind["bb_mid"]:
-        buy_score += 1
-        reasons.append("Precio en mitad inferior de BB")
-    if ind["price"] >= ind["bb_upper"] * 0.98:
-        sell_score += 1
-        reasons.append("Precio tocando banda superior BB")
-
-    vol_confirm = ind["vol_ratio"] > 1.2
-    if vol_confirm:
-        reasons.append(f"Volumen confirma ({ind['vol_ratio']:.1f}x promedio)")
-
-    k, d, kp, dp = ind["stoch_k"], ind["stoch_d"], ind["stoch_k_prev"], ind["stoch_d_prev"]
-    stoch_bull_cross = k > d and kp <= dp and k < 40
-    stoch_bear_cross = k < d and kp >= dp and k > 60
-
-    if stoch_bull_cross:
-        score = 2 if vol_confirm else 1
-        buy_score += score
-        reasons.append(f"StochRSI cruce alcista K({k:.1f}) > D({d:.1f}) desde sobreventa{' + volumen' if vol_confirm else ''}")
-    if stoch_bear_cross:
-        score = 2 if vol_confirm else 1
-        sell_score += score
-        reasons.append(f"StochRSI cruce bajista K({k:.1f}) < D({d:.1f}) desde sobrecompra{' + volumen' if vol_confirm else ''}")
 
     if not bullish_market and buy_score >= BUY_THRESHOLD:
         reasons.append("BUY bloqueado — SPY bajo EMA50 (mercado bajista)")
