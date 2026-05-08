@@ -300,9 +300,98 @@ def _get_signal_swing(ind: dict, bullish_market: bool) -> tuple[str, list[str]]:
     sell_score = 0
     reasons = []
 
-    if ind["adx"] < 20:
-        reasons.append(f"ADX bajo ({ind['adx']:.1f}) — mercado lateral, sin señal")
+    adx = ind["adx"]
+    if adx < 15:
+        reasons.append(f"ADX muy bajo ({adx:.1f}) — mercado lateral, sin señal")
         return "HOLD", reasons
+    elif adx < 20:
+        reasons.append(f"ADX bajo ({adx:.1f}) — tendencia debil, scoring penalizado")
+        buy_score -= 1
+        sell_score -= 1
+    else:
+        reasons.append(f"ADX {adx:.1f} — tendencia activa")
+
+    if ind["rsi"] <= 38:
+        buy_score += 1
+        reasons.append(f"RSI en sobreventa ({ind['rsi']:.1f})")
+    elif ind["rsi"] <= 45:
+        buy_score += 1
+        reasons.append(f"RSI en zona de retroceso comprable ({ind['rsi']:.1f})")
+    if ind["rsi"] > 72:
+        sell_score += 1
+        reasons.append(f"RSI sobrecomprado ({ind['rsi']:.1f})")
+    elif ind["rsi"] > 65:
+        sell_score += 1
+        reasons.append(f"RSI alto ({ind['rsi']:.1f})")
+    if ind["rsi"] < 25:
+        sell_score += 2
+        reasons.append(f"RSI en panico extremo ({ind['rsi']:.1f})")
+
+    if ind["macd_hist"] > 0 and ind["macd_hist_prev"] <= 0:
+        buy_score += 2
+        reasons.append("MACD cruce alcista")
+    elif ind["macd_hist"] > 0:
+        buy_score += 1
+        reasons.append("MACD histogram positivo")
+    if ind["macd_hist"] < 0 and ind["macd_hist_prev"] >= 0:
+        sell_score += 2
+        reasons.append("MACD cruce bajista")
+    elif ind["macd_hist"] < 0:
+        sell_score += 1
+        reasons.append("MACD histogram negativo")
+
+    if ind["price"] > ind["ema_short"] > ind["ema_long"]:
+        buy_score += 1
+        reasons.append("Precio > EMA20 > EMA50")
+    elif ind["price"] > ind["ema_short"]:
+        buy_score += 1
+        reasons.append("Precio sobre EMA20")
+    if ind["price"] < ind["ema_short"]:
+        sell_score += 1
+        reasons.append("Precio < EMA20")
+
+    if ind["price"] <= ind["bb_mid"]:
+        buy_score += 1
+        reasons.append("Precio en mitad inferior de BB")
+    if ind["price"] >= ind["bb_upper"] * 0.98:
+        sell_score += 1
+        reasons.append("Precio tocando banda superior BB")
+
+    vol_confirm = ind["vol_ratio"] > 1.2
+    if vol_confirm:
+        buy_score += 1
+        reasons.append(f"Volumen confirma ({ind['vol_ratio']:.1f}x promedio)")
+
+    k, d, kp, dp = ind["stoch_k"], ind["stoch_d"], ind["stoch_k_prev"], ind["stoch_d_prev"]
+    stoch_bull_cross = k > d and kp <= dp and k < 45
+    stoch_bear_cross = k < d and kp >= dp and k > 55
+
+    if stoch_bull_cross:
+        score = 2 if vol_confirm else 1
+        buy_score += score
+        reasons.append(f"StochRSI cruce alcista K({k:.1f}) > D({d:.1f}) desde sobreventa{' + volumen' if vol_confirm else ''}")
+    if stoch_bear_cross:
+        score = 2 if vol_confirm else 1
+        sell_score += score
+        reasons.append(f"StochRSI cruce bajista K({k:.1f}) < D({d:.1f}) desde sobrecompra{' + volumen' if vol_confirm else ''}")
+
+    gap_pct = ind.get("gap_pct", 0.0)
+    if gap_pct <= -2.0 and ind["price"] > ind["ema_short"]:
+        buy_score += 1
+        reasons.append(f"Gap bajista aprovechable ({gap_pct:.2f}%) con soporte sobre EMA20")
+    if gap_pct >= 2.5:
+        sell_score += 1
+        reasons.append(f"Gap alcista extendido ({gap_pct:.2f}%)")
+
+    if not bullish_market and buy_score >= BUY_THRESHOLD:
+        reasons.append("BUY bloqueado — SPY bajo EMA50 (mercado bajista)")
+        return "HOLD", reasons
+
+    if buy_score >= BUY_THRESHOLD:
+        return "BUY", reasons
+    if sell_score >= SELL_THRESHOLD:
+        return "SELL", reasons
+    return "HOLD", reasons
     reasons.append(f"ADX {ind['adx']:.1f} — tendencia activa")
 
     if ind["rsi"] <= 40:

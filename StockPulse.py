@@ -43,7 +43,7 @@ def run_cycle() -> None:
 
             log.info(
                 f"{symbol:6s} | ${ind['price']:>10.2f} USD | RSI: {ind['rsi']:>5.1f} | "
-                f"MACD_h: {ind['macd_hist']:>7.4f} | EMA20: {ind['ema_short']:>10.2f} | {signal}"
+                f"MACD_h: {ind['macd_hist']:>7.4f} | EMA20: {ind['ema_short']:>10.2f} | GAP: {ind.get('gap_pct', 0.0):>6.2f}% | {signal}"
             )
 
             if signal in ("BUY", "SELL"):
@@ -66,6 +66,7 @@ def run_cycle() -> None:
                     f"RSI: `{ind['rsi']:.1f}` | Stoch K: `{ind['stoch_k']:.1f}`\n"
                     f"MACD hist: `{ind['macd_hist']:.4f}` (prev `{ind['macd_hist_prev']:.4f}`)\n"
                     f"EMA20: `{ind['ema_short']:.2f}` / EMA50: `{ind['ema_long']:.2f}`\n"
+                    f"Gap overnight: `{ind.get('gap_pct', 0.0):.2f}%` (open `{ind.get('open', ind['price']):.2f}` vs prev close `{ind.get('prev_close', ind['price']):.2f}`)\n"
                     f"BB upper: `{ind['bb_upper']:.2f}` | BB mid: `{ind['bb_mid']:.2f}`\n"
                     f"Vol ratio: `{ind['vol_ratio']:.2f}x` | ATR: `{ind['atr']:.2f}`\n"
                     f"**Razones:** {', '.join(reasons)}"
@@ -119,18 +120,23 @@ def run_swing() -> None:
     while True:
         now_et = datetime.now(MARKET_TZ)
         today = now_et.date()
-        is_market_day = now_et.weekday() in {0, 1, 2, 3, 4}
         after_935 = (now_et.hour, now_et.minute) >= (SCAN_HOUR_ET, SCAN_MINUTE_ET)
         not_yet_scanned = last_scan_date != today
-        if is_market_day and after_935 and not_yet_scanned:
+        if market_is_open() and after_935 and not_yet_scanned:
             try:
                 run_cycle()
             except Exception as e:
                 log.error(f"Error inesperado: {e}")
                 send_discord(f"Error en ciclo swing: `{e}`", 0xbb653b)
             last_scan_date = today
-            log.info("Escaneo diario completado. Proximo escaneo mañana a las 09:35 ET.")
-        time.sleep(60)
+            log.info("Escaneo diario completado. Proximo escaneo proximo dia habil a las 09:35 ET.")
+            time.sleep(60)
+        else:
+            if not after_935:
+                wait = seconds_until_open()
+                time.sleep(min(wait, 300))
+            else:
+                time.sleep(60)
 
 def run_crypto() -> None:
     log.info("Modo: CRYPTO — escaneo cada 30 min (24/7)")

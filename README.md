@@ -7,7 +7,7 @@ StockPulse supports two operating modes selectable via the `TRADING_MODE` enviro
 | Mode | Candles | Scan frequency | BUY threshold | SELL threshold |
 |---|---|---|---|---|
 | `intraday` (default) | 30-minute | Every 30 min while NYSE is open | ≥ 4 | ≥ 3 |
-| `swing` | Daily (1d) | Once per day at 09:35 ET | ≥ 5 | ≥ 4 |
+| `swing` | Daily (1d) | Once per day at 09:35 ET | ≥ 4 | ≥ 3 |
 
 ***
 
@@ -21,7 +21,7 @@ During a cycle, for every symbol in the watchlist:
 
 1. **Fetch** — OHLCV candles are downloaded from Yahoo Finance via `yfinance` (7 days × 30 min in intraday; 6 months × 1d in swing).
 2. **Compute** — all technical indicators are calculated with `pandas_ta`.
-3. **Filter** *(swing only)* — if SPY is trading below its 50-day EMA, all BUY signals are suppressed for the entire cycle and a warning is sent to Discord.
+3. **Filter** *(swing only)* — if SPY is trading below its 50-day EMA, all BUY signals are suppressed for the entire cycle and a warning is sent to Discord; the swing scheduler also waits for an actual NYSE session, including holidays.
 4. **Score** — each indicator contributes points to a `buy_score` or `sell_score`.
 5. **Decide** — if `buy_score ≥ threshold` → **BUY**; if `sell_score ≥ threshold` → **SELL**; otherwise **HOLD**.
 6. **Alert** — BUY/SELL signals are sent as rich Discord embeds with all indicator values and the list of triggered reasons. Swing alerts include a T+1 hold reminder.
@@ -234,7 +234,7 @@ All seven indicators are evaluated simultaneously for every candle. Each trigger
 
 $$Signal = \begin{cases} \textbf{BUY} & \text{if } buy\_score \geq threshold_{BUY} \\ \textbf{SELL} & \text{if } sell\_score \geq threshold_{SELL} \\ \textbf{HOLD} & \text{otherwise} \end{cases}$$
 
-The SELL threshold is intentionally lower than BUY to exit positions more reactively than entering them. In swing mode both thresholds are raised by 1 to reduce noise on the daily timeframe, and BUY signals are additionally suppressed when SPY trades below its 50-day EMA.
+The SELL threshold is intentionally lower than BUY to exit positions more reactively than entering them. In swing mode, BUY is now triggered at 4 points and SELL at 3 points, ADX below 15 still blocks signals entirely, ADX from 15 to 20 penalizes both scores, sustained MACD histogram direction contributes 1 point even without a fresh crossover, and overnight gap behavior adds context for stretched opens or buyable gap-downs.
 
 **Full scoring table:**
 
@@ -295,7 +295,7 @@ TRADING_MODE=swing
 python StockPulse.py
 ```
 
-The bot logs every scan cycle to the console and to `StockPulse.log`. Discord alerts are only sent when a BUY or SELL signal is triggered.
+The bot logs every scan cycle to the console and to `StockPulse.log`. Discord alerts are only sent when a BUY or SELL signal is triggered, and swing alerts now include overnight gap context.
 
 ### 5. Deploy
 This bot is designed to be deployed and run 24/7 on a server, may this be whichever you prefer.
