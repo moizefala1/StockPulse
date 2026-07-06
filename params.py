@@ -4,86 +4,125 @@ from datetime import time as dtime
 import pytz
 from dotenv import load_dotenv
 
-load_dotenv()
 
-# logging configuration for debugging and monitoring
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("StockPulse.log"),
-    ],
-)
-log = logging.getLogger("stocks_bot")
+def init() -> None:
+    global log, TRADING_MODE, WEBHOOK, MARKET_TZ, MARKET_OPEN, MARKET_CLOSE, MARKET_DAYS
+    global DATA_INTERVAL, DATA_PERIOD, MIN_CANDLES, SCAN_INTERVAL
+    global SCAN_HOUR_ET, SCAN_MINUTE_ET, BUY_THRESHOLD, SELL_THRESHOLD
 
-TRADING_MODE = os.getenv("TRADING_MODE", "intraday").lower()
+    load_dotenv()
 
-# discord
-WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL", "")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler("StockPulse.log"),
+        ],
+    )
+    log = logging.getLogger("stocks_bot")
 
-# NYSE timezone
-MARKET_TZ = pytz.timezone("America/New_York")
-MARKET_OPEN = dtime(9, 30)
-MARKET_CLOSE = dtime(16, 0)
-MARKET_DAYS = {0, 1, 2, 3, 4}  # mon-fri
+    TRADING_MODE = os.getenv("TRADING_MODE", "intraday").lower()
 
-# parameters by mode
-if TRADING_MODE == "intraday":
-    DATA_INTERVAL = "30m"
-    DATA_PERIOD = "7d"
-    MIN_CANDLES = 60
-    SCAN_INTERVAL = 30 * 60
-    SCAN_HOUR_ET = None
-    SCAN_MINUTE_ET = None
-    BUY_THRESHOLD = 4
-    SELL_THRESHOLD = 3
-elif TRADING_MODE == "crypto":
-    DATA_INTERVAL = "30m"
-    DATA_PERIOD = "7d"
-    MIN_CANDLES = 40
-    SCAN_INTERVAL = 30 * 60
-    SCAN_HOUR_ET = None
-    SCAN_MINUTE_ET = None
-    BUY_THRESHOLD = 5
-    SELL_THRESHOLD = 4
-else:  # swing
-    DATA_INTERVAL = "1d"
-    DATA_PERIOD = "6mo"
-    MIN_CANDLES = 60
-    SCAN_INTERVAL = None
-    SCAN_HOUR_ET = 9
-    SCAN_MINUTE_ET = 35
-    BUY_THRESHOLD = 4
-    SELL_THRESHOLD = 3
+    WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL", "")
 
-# stocks
+    MARKET_TZ = pytz.timezone("America/New_York")
+    MARKET_OPEN = dtime(9, 30)
+    MARKET_CLOSE = dtime(16, 0)
+    MARKET_DAYS = {0, 1, 2, 3, 4}
+
+    if TRADING_MODE == "intraday":
+        DATA_INTERVAL = "30m"
+        DATA_PERIOD = "7d"
+        MIN_CANDLES = 60
+        SCAN_INTERVAL = 30 * 60
+        SCAN_HOUR_ET = None
+        SCAN_MINUTE_ET = None
+        BUY_THRESHOLD = 4
+        SELL_THRESHOLD = 3
+    elif TRADING_MODE == "crypto":
+        DATA_INTERVAL = "30m"
+        DATA_PERIOD = "7d"
+        MIN_CANDLES = 40
+        SCAN_INTERVAL = 30 * 60
+        SCAN_HOUR_ET = None
+        SCAN_MINUTE_ET = None
+        BUY_THRESHOLD = 5
+        SELL_THRESHOLD = 4
+    else:
+        DATA_INTERVAL = "1d"
+        DATA_PERIOD = "6mo"
+        MIN_CANDLES = 60
+        SCAN_INTERVAL = None
+        SCAN_HOUR_ET = 9
+        SCAN_MINUTE_ET = 35
+        BUY_THRESHOLD = 4
+        SELL_THRESHOLD = 3
+
+
 SYMBOLS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META",
-    "NVDA", "PLTR", "NOW", "SNOW", "ADBE",
-    "AVGO", "QCOM", "MU", "AMAT",
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "NVDA",
+    "PLTR",
+    "NOW",
+    "SNOW",
+    "ADBE",
+    "AVGO",
+    "QCOM",
+    "MU",
+    "AMAT",
     "TSLA",
-    "JPM", "V", "BX", "PYPL",
-    "LLY", "UNH", "ISRG", "TMO",
-    "XOM", "NEE",
-    "COST", "MCD", "NKE",
-    "RTX", "CAT",
+    "JPM",
+    "V",
+    "BX",
+    "PYPL",
+    "LLY",
+    "UNH",
+    "ISRG",
+    "TMO",
+    "XOM",
+    "NEE",
+    "COST",
+    "MCD",
+    "NKE",
+    "RTX",
+    "CAT",
     "SPY",
-    "MSTR", "HOOD", "COIN", "RBLX", "DKNG",
-    "LMT", "NOC", "GD",
-    "MRNA", "RXRX", "CRSP",
-    "AFRM", "NU",
-    "CRWD", "ZS", "NET", "DDOG",
-    "ABNB", "UBER", "SPOT",
-    "GE", "PWR",
-    "FCX", "NEM",
-    "SHOP", "MELI",
+    "MSTR",
+    "HOOD",
+    "COIN",
+    "RBLX",
+    "DKNG",
+    "LMT",
+    "NOC",
+    "GD",
+    "MRNA",
+    "RXRX",
+    "CRSP",
+    "AFRM",
+    "NU",
+    "CRWD",
+    "ZS",
+    "NET",
+    "DDOG",
+    "ABNB",
+    "UBER",
+    "SPOT",
+    "GE",
+    "PWR",
+    "FCX",
+    "NEM",
+    "SHOP",
+    "MELI",
     "GLD",
 ]
 
 CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "SOL-USD"]
 
-# indicator parameters
 RSI_PERIOD = 14
 MACD_FAST = 12
 MACD_SLOW = 26

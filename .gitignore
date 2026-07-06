@@ -5,3 +5,7 @@ __pycache__/
 venv/
 .venv/
 .DS_Store
+AGENTS.md
+.pytest_cache/
+.ruff_cache/
+simulation.json

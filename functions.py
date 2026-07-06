@@ -1,16 +1,27 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import yfinance as yf
 import pandas_ta as ta
 import requests
 import pandas_market_calendars as mcal
-import time as _time
-
 from params import (
-    log, WEBHOOK, MARKET_TZ, MARKET_OPEN, MARKET_CLOSE, MARKET_DAYS,
-    RSI_PERIOD, MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
-    BB_PERIOD, BB_STD, DATA_INTERVAL, DATA_PERIOD, MIN_CANDLES,
-    BUY_THRESHOLD, SELL_THRESHOLD, TRADING_MODE,
+    log,
+    WEBHOOK,
+    MARKET_TZ,
+    RSI_PERIOD,
+    MACD_FAST,
+    MACD_SLOW,
+    MACD_SIGNAL,
+    EMA_SHORT,
+    EMA_LONG,
+    BB_PERIOD,
+    BB_STD,
+    DATA_INTERVAL,
+    DATA_PERIOD,
+    MIN_CANDLES,
+    BUY_THRESHOLD,
+    SELL_THRESHOLD,
+    TRADING_MODE,
 )
 
 
@@ -39,7 +50,7 @@ def seconds_until_open() -> float:
     return 3600
 
 
-def send_discord(message: str, color: int = 0x4f98a3) -> None:
+def send_discord(message: str, color: int = 0x4F98A3) -> None:
     if not WEBHOOK:
         log.info(f"[DISCORD] {message}")
         return
@@ -58,12 +69,14 @@ def send_discord(message: str, color: int = 0x4f98a3) -> None:
 
     payload = {
         "content": content,
-        "embeds": [{
-            "title": f"StockPulse · {mode_label}",
-            "description": message.strip(),
-            "color": color,
-            "timestamp": datetime.utcnow().isoformat(),
-        }]
+        "embeds": [
+            {
+                "title": f"StockPulse · {mode_label}",
+                "description": message.strip(),
+                "color": color,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        ],
     }
     try:
         requests.post(WEBHOOK, json=payload, timeout=5)
@@ -80,7 +93,9 @@ def market_is_bullish() -> bool:
         ema50 = close.ewm(span=50, adjust=False).mean().iloc[-1]
         precio = close.iloc[-1]
         alcista = precio > ema50
-        log.info(f"SPY ${precio:.2f} vs EMA50 ${ema50:.2f} -> {'ALCISTA' if alcista else 'BAJISTA'}")
+        log.info(
+            f"SPY ${precio:.2f} vs EMA50 ${ema50:.2f} -> {'ALCISTA' if alcista else 'BAJISTA'}"
+        )
         return alcista
     except Exception as e:
         log.warning(f"No se pudo verificar tendencia SPY: {e}")
@@ -96,22 +111,27 @@ def crypto_is_bullish() -> bool:
         ema50 = close.ewm(span=50, adjust=False).mean().iloc[-1]
         precio = close.iloc[-1]
         alcista = precio > ema50
-        log.info(f"BTC ${precio:.2f} vs EMA50 ${ema50:.2f} -> {'ALCISTA' if alcista else 'BAJISTA'}")
+        log.info(
+            f"BTC ${precio:.2f} vs EMA50 ${ema50:.2f} -> {'ALCISTA' if alcista else 'BAJISTA'}"
+        )
         return alcista
     except Exception as e:
         log.warning(f"No se pudo verificar tendencia BTC: {e}")
         return True
 
 
-def get_data(symbol: str) -> pd.DataFrame | None:
+def get_data(symbol: str, stock_splits: bool = True) -> pd.DataFrame | None:
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period=DATA_PERIOD, interval=DATA_INTERVAL, auto_adjust=True)
+        df = ticker.history(
+            period=DATA_PERIOD, interval=DATA_INTERVAL, auto_adjust=True
+        )
         if df.empty or len(df) < MIN_CANDLES:
             log.warning(f"{symbol}: datos insuficientes ({len(df)} velas)")
             return None
         df.columns = [c.lower() for c in df.columns]
-        df = df.rename(columns={"stock splits": "splits"})
+        if stock_splits:
+            df = df.rename(columns={"stock splits": "splits"})
         return df
     except Exception as e:
         log.error(f"Error descargando {symbol}: {e}")
@@ -119,79 +139,77 @@ def get_data(symbol: str) -> pd.DataFrame | None:
 
 
 def get_data_crypto(symbol_usd: str) -> pd.DataFrame | None:
-    try:
-        ticker = yf.Ticker(symbol_usd)
-        df = ticker.history(period=DATA_PERIOD, interval=DATA_INTERVAL, auto_adjust=True)
-        if df.empty or len(df) < MIN_CANDLES:
-            log.warning(f"{symbol_usd}: datos insuficientes ({len(df)} velas)")
-            return None
-        df.columns = [c.lower() for c in df.columns]
-        return df
-    except Exception as e:
-        log.error(f"Error descargando crypto {symbol_usd}: {e}")
-        return None
+    return get_data(symbol_usd, stock_splits=False)
 
 
 def get_indicators(df: pd.DataFrame) -> dict:
     close = df["close"]
-    high  = df["high"]
-    low   = df["low"]
-    vol   = df["volume"]
+    high = df["high"]
+    low = df["low"]
+    vol = df["volume"]
 
     rsi = ta.rsi(close, length=RSI_PERIOD)
     macd_df = ta.macd(close, fast=MACD_FAST, slow=MACD_SLOW, signal=MACD_SIGNAL)
-    macd_line   = macd_df[f"MACD_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
+    macd_line = macd_df[f"MACD_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
     macd_signal = macd_df[f"MACDs_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
-    macd_hist   = macd_df[f"MACDh_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
+    macd_hist = macd_df[f"MACDh_{MACD_FAST}_{MACD_SLOW}_{MACD_SIGNAL}"]
 
     ema_short = ta.ema(close, length=EMA_SHORT)
-    ema_long  = ta.ema(close, length=EMA_LONG)
+    ema_long = ta.ema(close, length=EMA_LONG)
 
     bb = ta.bbands(close, length=BB_PERIOD, std=BB_STD)
     bb_lower = bb[[c for c in bb.columns if c.startswith("BBL_")]].iloc[:, 0]
-    bb_mid   = bb[[c for c in bb.columns if c.startswith("BBM_")]].iloc[:, 0]
+    bb_mid = bb[[c for c in bb.columns if c.startswith("BBM_")]].iloc[:, 0]
     bb_upper = bb[[c for c in bb.columns if c.startswith("BBU_")]].iloc[:, 0]
 
     atr = ta.atr(high, low, close, length=14)
-    vol_avg   = vol.rolling(20).mean()
+    vol_avg = vol.rolling(20).mean()
     vol_ratio = (vol / vol_avg).iloc[-1]
 
-    stoch_rsi   = ta.stochrsi(close, length=14)
-    stoch_k      = stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-1]  if stoch_rsi is not None else 50.0
-    stoch_d      = stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-1]  if stoch_rsi is not None else 50.0
-    stoch_k_prev = stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-2]  if stoch_rsi is not None else 50.0
-    stoch_d_prev = stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-2]  if stoch_rsi is not None else 50.0
+    stoch_rsi = ta.stochrsi(close, length=14)
+    stoch_k = (
+        stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-1] if stoch_rsi is not None else 50.0
+    )
+    stoch_d = (
+        stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-1] if stoch_rsi is not None else 50.0
+    )
+    stoch_k_prev = (
+        stoch_rsi["STOCHRSIk_14_14_3_3"].iloc[-2] if stoch_rsi is not None else 50.0
+    )
+    stoch_d_prev = (
+        stoch_rsi["STOCHRSId_14_14_3_3"].iloc[-2] if stoch_rsi is not None else 50.0
+    )
 
     adx_df = ta.adx(high, low, close, length=14)
-    adx    = float(adx_df["ADX_14"].iloc[-1]) if adx_df is not None else 25.0
+    adx = float(adx_df["ADX_14"].iloc[-1]) if adx_df is not None else 25.0
 
     # Gap overnight
     prev_close = float(close.iloc[-2])
-    open_now   = float(df["open"].iloc[-1])
-    gap_pct    = ((open_now / prev_close) - 1.0) * 100 if prev_close else 0.0
+    open_now = float(df["open"].iloc[-1])
+    gap_pct = ((open_now / prev_close) - 1.0) * 100 if prev_close else 0.0
 
     return {
-        "price":          float(close.iloc[-1]),
-        "prev_close":     prev_close,
-        "open":           open_now,
-        "gap_pct":        float(gap_pct),
-        "rsi":            float(rsi.iloc[-1]),
-        "stoch_k":        float(stoch_k),
-        "stoch_d":        float(stoch_d),
-        "stoch_k_prev":   float(stoch_k_prev),
-        "stoch_d_prev":   float(stoch_d_prev),
-        "macd":           float(macd_line.iloc[-1]),
-        "macd_signal":    float(macd_signal.iloc[-1]),
-        "macd_hist":      float(macd_hist.iloc[-1]),
+        "price": float(close.iloc[-1]),
+        "prev_close": prev_close,
+        "open": open_now,
+        "gap_pct": float(gap_pct),
+        "rsi": float(rsi.iloc[-1]),
+        "stoch_k": float(stoch_k),
+        "stoch_d": float(stoch_d),
+        "stoch_k_prev": float(stoch_k_prev),
+        "stoch_d_prev": float(stoch_d_prev),
+        "macd": float(macd_line.iloc[-1]),
+        "macd_signal": float(macd_signal.iloc[-1]),
+        "macd_hist": float(macd_hist.iloc[-1]),
         "macd_hist_prev": float(macd_hist.iloc[-2]),
-        "ema_short":      float(ema_short.iloc[-1]),
-        "ema_long":       float(ema_long.iloc[-1]),
-        "bb_upper":       float(bb_upper.iloc[-1]),
-        "bb_lower":       float(bb_lower.iloc[-1]),
-        "bb_mid":         float(bb_mid.iloc[-1]),
-        "atr":            float(atr.iloc[-1]),
-        "vol_ratio":      float(vol_ratio),
-        "adx":            adx,
+        "ema_short": float(ema_short.iloc[-1]),
+        "ema_long": float(ema_long.iloc[-1]),
+        "bb_upper": float(bb_upper.iloc[-1]),
+        "bb_lower": float(bb_lower.iloc[-1]),
+        "bb_mid": float(bb_mid.iloc[-1]),
+        "atr": float(atr.iloc[-1]),
+        "vol_ratio": float(vol_ratio),
+        "adx": adx,
     }
 
 
@@ -379,23 +397,34 @@ def _get_signal_swing(ind: dict, bullish_market: bool) -> tuple[str, list[str]]:
         buy_score += 1
         reasons.append(f"Volumen confirma ({ind['vol_ratio']:.1f}x promedio)")
 
-    k, d, kp, dp = ind["stoch_k"], ind["stoch_d"], ind["stoch_k_prev"], ind["stoch_d_prev"]
+    k, d, kp, dp = (
+        ind["stoch_k"],
+        ind["stoch_d"],
+        ind["stoch_k_prev"],
+        ind["stoch_d_prev"],
+    )
     stoch_bull_cross = k > d and kp <= dp and k < 45
     stoch_bear_cross = k < d and kp >= dp and k > 55
 
     if stoch_bull_cross:
         score = 2 if vol_confirm else 1
         buy_score += score
-        reasons.append(f"StochRSI cruce alcista K({k:.1f}) > D({d:.1f}) desde sobreventa{' + volumen' if vol_confirm else ''}")
+        reasons.append(
+            f"StochRSI cruce alcista K({k:.1f}) > D({d:.1f}) desde sobreventa{' + volumen' if vol_confirm else ''}"
+        )
     if stoch_bear_cross:
         score = 2 if vol_confirm else 1
         sell_score += score
-        reasons.append(f"StochRSI cruce bajista K({k:.1f}) < D({d:.1f}) desde sobrecompra{' + volumen' if vol_confirm else ''}")
+        reasons.append(
+            f"StochRSI cruce bajista K({k:.1f}) < D({d:.1f}) desde sobrecompra{' + volumen' if vol_confirm else ''}"
+        )
 
     gap_pct = ind.get("gap_pct", 0.0)
     if gap_pct <= -2.0 and ind["price"] > ind["ema_short"]:
         buy_score += 1
-        reasons.append(f"Gap bajista aprovechable ({gap_pct:.2f}%) con soporte sobre EMA20")
+        reasons.append(
+            f"Gap bajista aprovechable ({gap_pct:.2f}%) con soporte sobre EMA20"
+        )
     if gap_pct >= 2.5:
         sell_score += 1
         reasons.append(f"Gap alcista extendido ({gap_pct:.2f}%)")
